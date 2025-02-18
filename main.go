@@ -2,20 +2,24 @@ package main
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"github.com/go-sql-driver/mysql"
 	"github.com/joho/godotenv"
 	"log"
+	"net/http"
 	"os"
+	"strconv"
 )
 
 var db *sql.DB
 
+// added json for web server
 type Album struct {
-	ID     int64
-	Title  string
-	Artist string
-	Price  float32
+	ID     int64   `json:"id"`
+	Title  string  `json:"title"`
+	Artist string  `json:"artist"`
+	Price  float32 `json:"price"`
 }
 
 func main() {
@@ -45,27 +49,34 @@ func main() {
 	}
 	fmt.Println("Connected!")
 
-	albums, err := albumsByArtist("Pink Floyd")
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Printf("Albums found: %v\n", albums)
+	http.HandleFunc("/albums", getAlbumsByArtist)
+	http.HandleFunc("/album", getAlbumById)
+	http.HandleFunc("/addAlbum", addNewAlbum)
+	http.HandleFunc("/deleteById", deleteAlbumById)
 
-	alb, err := albumById(4)
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Printf("Album found: %v\n", alb)
+	log.Fatal(http.ListenAndServe(":8080", nil))
 
-	albId, err := addAlbum(Album{
-		Title:  "The Modern Sound of Betty Carter",
-		Artist: "Betty Carter",
-		Price:  49.99,
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Printf("ID of added album: %d\n", albId)
+	//albums, err := albumsByArtist("Pink Floyd")
+	//if err != nil {
+	//	log.Fatal(err)
+	//}
+	//fmt.Printf("Albums found: %v\n", albums)
+
+	//alb, err := albumById(4)
+	//if err != nil {
+	//	log.Fatal(err)
+	//}
+	//fmt.Printf("Album found: %v\n", alb)
+	//
+	//albId, err := addAlbum(Album{
+	//	Title:  "The Modern Sound of Betty Carter",
+	//	Artist: "Betty Carter",
+	//	Price:  49.99,
+	//})
+	//if err != nil {
+	//	log.Fatal(err)
+	//}
+	//fmt.Printf("ID of added album: %d\n", albId)
 }
 
 // albumsByArtist returns all albums for a given artist name
@@ -123,4 +134,69 @@ func addAlbum(alb Album) (int64, error) {
 		return 0, fmt.Errorf("addAlbum: %v", err)
 	}
 	return id, nil
+}
+
+// web server functions
+func getAlbumsByArtist(w http.ResponseWriter, r *http.Request) {
+	artist := r.URL.Query().Get("artist")
+	albums, err := albumsByArtist(artist)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	err = json.NewEncoder(w).Encode(albums)
+	if err != nil {
+		return
+	}
+}
+
+func getAlbumById(w http.ResponseWriter, r *http.Request) {
+	idStr := r.URL.Query().Get("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid Id", http.StatusBadRequest)
+		return
+	}
+	album, err := albumById(id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	err = json.NewEncoder(w).Encode(album)
+	if err != nil {
+		return
+	}
+}
+
+func addNewAlbum(w http.ResponseWriter, r *http.Request) {
+	var alb Album
+	if err := json.NewDecoder(r.Body).Decode(&alb); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	id, err := addAlbum(alb)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusCreated)
+	err = json.NewEncoder(w).Encode(map[string]int64{"id": id})
+	if err != nil {
+		return
+	}
+}
+
+func deleteAlbumById(w http.ResponseWriter, r *http.Request) {
+	idStr := r.URL.Query().Get("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid Id", http.StatusBadRequest)
+		return
+	}
+	_, err = db.Exec("delete from album where id = ?", id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
