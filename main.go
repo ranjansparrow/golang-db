@@ -186,6 +186,27 @@ func addNewAlbum(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func removeAlbumById(id int64) (int64, error) {
+	//An album to hold data from the returned row
+
+	result, err := db.Exec("Delete from album where id = ?", id)
+
+	if err != nil {
+		log.Fatal("Error deleting album")
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+
+	if rowsAffected == 0 {
+		return 0, fmt.Errorf("removeAlbumById %d: no rows affected", id)
+	}
+
+	return rowsAffected, nil
+}
+
 func deleteAlbumById(w http.ResponseWriter, r *http.Request) {
 	idStr := r.URL.Query().Get("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
@@ -193,10 +214,16 @@ func deleteAlbumById(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid Id", http.StatusBadRequest)
 		return
 	}
-	_, err = db.Exec("delete from album where id = ?", id)
+
+	_, err = removeAlbumById(id)
+
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.WriteHeader(http.StatusNoContent)
+	w.WriteHeader(http.StatusOK)
+	err = json.NewEncoder(w).Encode(map[string]string{"message": "Album deleted successfully"})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
