@@ -32,8 +32,8 @@ func main() {
 		User:   os.Getenv("DBUSER"),
 		Passwd: os.Getenv("DBPASS"),
 		Net:    "tcp",
-		Addr:   "127.0.0.1:3306",
-		DBName: "recordings",
+		Addr:   fmt.Sprintf("%s:%s", os.Getenv("DBHOST"), os.Getenv("DBPORT")),
+		DBName: os.Getenv("DBNAME"),
 	}
 
 	//Get a database handle
