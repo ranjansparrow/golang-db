@@ -8,6 +8,8 @@ This is a Go project with a database setup that demonstrates basic CRUD operatio
 - MySQL database
 - `go-sql-driver/mysql` package
 - `joho/godotenv` package
+- Docker
+- Docker Compose
 
 ## Setup
 
